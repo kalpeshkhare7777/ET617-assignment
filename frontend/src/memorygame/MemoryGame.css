@@ -1,0 +1,161 @@
+/* Main App Layout */
+.app-container {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    text-align: center;
+    background-color: #f0f4f8;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.app-header {
+    background-color: #ffffff;
+    padding: 1rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.app-header h1 {
+    margin: 0;
+    color: #2d3748;
+    font-size: 2rem;
+}
+
+.app-main {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-grow: 1;
+    padding: 1rem;
+}
+
+/* Start Screen */
+.start-screen {
+    background-color: #ffffff;
+    padding: 3rem 4rem;
+    border-radius: 0.75rem;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+}
+
+.start-screen h2 {
+    color: #4a5568;
+    margin-top: 0;
+}
+
+.start-btn {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #ffffff;
+    background-color: #4299e1;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.start-btn:hover {
+    background-color: #3182ce;
+}
+
+/* --- Styles for Game Elements --- */
+
+.game-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.game-stats {
+    margin-bottom: 1rem;
+    font-size: 1.2rem;
+    font-weight: 500;
+    color: #4a5568;
+}
+
+.game-controls {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.action-btn {
+    font-size: 1rem;
+    font-weight: 500;
+    color: #2d3748;
+    background-color: #ffffff;
+    border: 1px solid #cbd5e0;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.action-btn:hover {
+    background-color: #edf2f7;
+    border-color: #a0aec0;
+}
+
+.action-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.game-board {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+    max-width: 500px;
+    margin: auto;
+}
+
+/* Tile Styles and Flip Animation */
+.tile-container {
+    width: 100px;
+    height: 100px;
+    perspective: 1000px; /* For the 3D effect */
+    cursor: pointer;
+}
+
+.tile {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    transform-style: preserve-3d;
+    transition: transform 0.6s, box-shadow 0.3s;
+    border-radius: 0.5rem;
+}
+
+.tile-container.flipped .tile {
+    transform: rotateY(180deg);
+}
+
+/* Style for the hint effect */
+.tile-container.hinted .tile {
+    box-shadow: 0 0 20px 5px #f6e05e; /* Yellow glow */
+}
+
+.tile-front,
+.tile-back {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    backface-visibility: hidden; /* Hides the back of the element */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border-radius: 0.5rem;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    font-size: 3rem;
+}
+
+.tile-back {
+    background-color: #4299e1;
+    color: white;
+}
+
+.tile-front {
+    background-color: #ffffff;
+    color: #2d3748;
+    transform: rotateY(180deg);
+}
