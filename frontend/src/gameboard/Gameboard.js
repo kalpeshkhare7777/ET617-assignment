@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { trackEvent } from '../api'; // Corrected the import path
+import React, { useState, useEffect, useRef } from 'react';
+import { startGameSession, logGameAction, endGameSession } from '../api';
 
 // The items to be matched. Using emojis for fun!
 const TILE_ITEMS = ['🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼'];
@@ -10,7 +10,6 @@ const TILE_ITEMS = ['🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '�
  */
 const createShuffledTiles = () => {
   const pairedItems = [...TILE_ITEMS, ...TILE_ITEMS];
-  // Simple shuffle algorithm
   for (let i = pairedItems.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [pairedItems[i], pairedItems[j]] = [pairedItems[j], pairedItems[i]];
@@ -24,38 +23,72 @@ const createShuffledTiles = () => {
 };
 
 /**
- * The main game board component with event tracking.
+ * The main game board component with advanced event tracking.
  */
 export default function GameBoard() {
   const [tiles, setTiles] = useState(createShuffledTiles());
   const [flippedTiles, setFlippedTiles] = useState([]);
   const [moves, setMoves] = useState(0);
-  const [history, setHistory] = useState([]);
-  const [hintedPair, setHintedPair] = useState([]);
+  const [isGameWon, setIsGameWon] = useState(false);
+  const [history, setHistory] = useState([]); // For the undo feature
+  const [hintedPair, setHintedPair] = useState([]); // For the hint feature
+  
+  const sessionIdRef = useRef(null);
+  
+  // This effect runs only once when the component mounts to start a new game session.
+  useEffect(() => {
+    const initializeGame = async () => {
+      const newSessionId = await startGameSession();
+      if (newSessionId) {
+        sessionIdRef.current = newSessionId;
+        logGameAction(newSessionId, 'game_start');
+      }
+    };
+    initializeGame();
+  }, []);
 
-  // Effect to check for matches whenever two tiles are flipped
+  // This effect checks for a win condition whenever the tiles state changes.
+  useEffect(() => {
+    // Don't check for win on the initial empty board
+    if (tiles.length > 0 && tiles.every(tile => tile.isMatched)) {
+        if (!isGameWon) { // Prevent multiple win events
+            setIsGameWon(true);
+            if (sessionIdRef.current) {
+                logGameAction(sessionIdRef.current, 'game_end', { outcome: 'win' });
+                endGameSession(sessionIdRef.current, 'win');
+            }
+        }
+    }
+  }, [tiles, isGameWon]);
+
+  // This effect handles the logic for matching tiles.
   useEffect(() => {
     if (flippedTiles.length < 2) return;
 
     const [firstIndex, secondIndex] = flippedTiles;
-    // It's a match!
-    if (tiles[firstIndex].content === tiles[secondIndex].content) {
+    const firstTile = tiles[firstIndex];
+    const secondTile = tiles[secondIndex];
+    const isMatch = firstTile.content === secondTile.content;
+
+    if (sessionIdRef.current) {
+        logGameAction(sessionIdRef.current, 'match_attempt', {
+            tiles: [firstTile.content, secondTile.content],
+            isMatch: isMatch,
+        });
+    }
+
+    if (isMatch) {
       setTiles(prevTiles =>
         prevTiles.map(tile =>
-          tile.content === tiles[firstIndex].content
-            ? { ...tile, isMatched: true }
-            : tile
+          tile.content === firstTile.content ? { ...tile, isMatched: true } : tile
         )
       );
       setFlippedTiles([]);
     } else {
-      // Not a match, flip them back after a short delay
       setTimeout(() => {
         setTiles(prevTiles =>
           prevTiles.map((tile, index) =>
-            index === firstIndex || index === secondIndex
-              ? { ...tile, isFlipped: false }
-              : tile
+            index === firstIndex || index === secondIndex ? { ...tile, isFlipped: false } : tile
           )
         );
         setFlippedTiles([]);
@@ -67,75 +100,68 @@ export default function GameBoard() {
    * Saves the current state to history before making a change.
    */
   const saveToHistory = () => {
-    setHistory(prevHistory => [...prevHistory, { tiles: tiles, moves: moves }]);
+    setHistory(prevHistory => [...prevHistory, { tiles, moves }]);
   };
 
   /**
    * Handles the click event on a tile.
-   * @param {number} index - The index of the clicked tile.
    */
   const handleTileClick = (index) => {
-    if (flippedTiles.length >= 2 || tiles[index].isFlipped) {
+    if (isGameWon || flippedTiles.length >= 2 || tiles[index].isFlipped) {
       return;
     }
 
-    // --- TRACK EVENT ---
-    trackEvent('tile_click', { tile: tiles[index].content, tileId: index });
+    saveToHistory(); // Save state before the move
 
-    saveToHistory();
+    if (sessionIdRef.current) {
+        logGameAction(sessionIdRef.current, 'tile_click', { 
+            tile: tiles[index].content, 
+            tileId: index,
+            isFirstTile: flippedTiles.length === 0,
+        });
+    }
 
-    const newFlippedTiles = [...flippedTiles, index];
-    setFlippedTiles(newFlippedTiles);
-
+    setMoves(prev => prev + 1);
+    setFlippedTiles(prev => [...prev, index]);
     setTiles(prevTiles =>
       prevTiles.map((tile, i) =>
         i === index ? { ...tile, isFlipped: true } : tile
       )
     );
-
-    if (newFlippedTiles.length === 2) {
-      setMoves(prev => prev + 1);
-    }
   };
 
   /**
-   * Resets the game to its initial state.
+   * Resets the game to its initial state, starting a new session.
    */
-  const handleReset = () => {
-    // --- TRACK EVENT ---
-    trackEvent('reset');
+  const handleReset = async () => {
+    if (sessionIdRef.current && !isGameWon) {
+        // End the current session as 'incomplete' since it was reset
+        await endGameSession(sessionIdRef.current, 'incomplete');
+    }
+    
+    // Start a brand new session
+    const newSessionId = await startGameSession();
+    if (newSessionId) {
+        sessionIdRef.current = newSessionId;
+        logGameAction(newSessionId, 'game_start');
+    }
     
     setTiles(createShuffledTiles());
     setMoves(0);
     setFlippedTiles([]);
+    setIsGameWon(false);
     setHistory([]);
-    setHintedPair([]);
-  };
-
-  /**
-   * Reverts the game to the last saved state.
-   */
-  const handleUndo = () => {
-    if (history.length === 0) return;
-
-    // --- TRACK EVENT ---
-    trackEvent('undo');
-
-    const lastState = history[history.length - 1];
-    setTiles(lastState.tiles);
-    setMoves(lastState.moves);
-    setHistory(history.slice(0, -1));
-    setFlippedTiles([]);
   };
 
   /**
    * Briefly reveals a pair of unmatched cards.
    */
   const handleHint = () => {
-    // --- TRACK EVENT ---
-    trackEvent('hint');
+    if (sessionIdRef.current) {
+      logGameAction(sessionIdRef.current, 'hint');
+    }
 
-    const unmatchedTiles = tiles.filter(tile => !tile.isMatched);
+    const unmatchedTiles = tiles.filter(tile => !tile.isMatched && !tile.isFlipped);
     if (unmatchedTiles.length < 2) return;
 
     const firstTile = unmatchedTiles[0];
@@ -145,18 +171,36 @@ export default function GameBoard() {
 
     if (matchingTile) {
       setHintedPair([firstTile.id, matchingTile.id]);
-      setTimeout(() => setHintedPair([]), 800);
+      setTimeout(() => setHintedPair([]), 800); // Show hint for 0.8 seconds
     }
+  };
+
+  /**
+   * Reverts the game to the last saved state.
+   */
+  const handleUndo = () => {
+    if (history.length === 0) return;
+
+    if (sessionIdRef.current) {
+      logGameAction(sessionIdRef.current, 'undo');
+    }
+
+    const lastState = history[history.length - 1];
+    setTiles(lastState.tiles);
+    setMoves(lastState.moves);
+    setHistory(history.slice(0, -1)); // Remove the last state
+    setFlippedTiles([]); // Clear any selections
   };
 
   return (
     <div className="game-container">
+      {isGameWon && <div className="win-message">You Won!</div>}
       <div className="game-stats">
         <p>Moves: {moves}</p>
       </div>
       <div className="game-controls">
-        <button className="action-btn" onClick={handleHint}>Hint</button>
-        <button className="action-btn" onClick={handleUndo} disabled={history.length === 0}>Undo</button>
+        <button className="action-btn" onClick={handleHint} disabled={isGameWon}>Hint</button>
+        <button className="action-btn" onClick={handleUndo} disabled={history.length === 0 || isGameWon}>Undo</button>
         <button className="action-btn" onClick={handleReset}>Reset</button>
       </div>
       <div className="game-board">
