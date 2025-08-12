@@ -1,13 +1,6 @@
 const API_URL = 'http://localhost:5001/api';
 
-// --- NEW Authentication Functions ---
-
-/**
- * Registers a new user.
- * @param {string} email - The user's email.
- * @param {string} password - The user's password.
- * @returns {Promise<object>} The server's response.
- */
+// --- Authentication Functions ---
 export const registerUser = async (email, password) => {
     const response = await fetch(`${API_URL}/auth/register`, {
         method: 'POST',
@@ -17,12 +10,6 @@ export const registerUser = async (email, password) => {
     return response.json();
 };
 
-/**
- * Logs in an existing user.
- * @param {string} email - The user's email.
- * @param {string} password - The user's password.
- * @returns {Promise<object>} The server's response.
- */
 export const loginUser = async (email, password) => {
     const response = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
@@ -34,10 +21,13 @@ export const loginUser = async (email, password) => {
 
 
 // --- Game Session and Analytics Functions ---
-
-export const startGameSession = async () => {
+export const startGameSession = async (userEmail) => {
     try {
-        const response = await fetch(`${API_URL}/game/start`, { method: 'POST' });
+        const response = await fetch(`${API_URL}/game/start`, { 
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userEmail }),
+        });
         if (!response.ok) throw new Error('Failed to start session');
         const data = await response.json();
         return data.sessionId;
@@ -47,12 +37,12 @@ export const startGameSession = async () => {
     }
 };
 
-export const logGameAction = async (sessionId, type, details = {}) => {
+export const logGameAction = async (sessionId, userEmail, type, details = {}) => {
     try {
         await fetch(`${API_URL}/game/action`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sessionId, type, ...details }),
+            body: JSON.stringify({ sessionId, userEmail, type, ...details }),
         });
     } catch (error) {
         console.error('Error logging game action:', error);
@@ -78,17 +68,6 @@ export const getAnalytics = async () => {
         return await response.json();
     } catch (error) {
         console.error('Error fetching analytics:', error);
-        return null;
-    }
-};
-
-export const getSessionLog = async (sessionId) => {
-    try {
-        const response = await fetch(`${API_URL}/game/log/${sessionId}`);
-        if (!response.ok) throw new Error('Failed to fetch session log');
-        return await response.json();
-    } catch (error) {
-        console.error('Error fetching session log:', error);
         return null;
     }
 };

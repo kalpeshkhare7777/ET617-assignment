@@ -12,7 +12,7 @@ const formatDuration = (totalSeconds) => {
 export default function Dashboard() {
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [showActionLog, setShowActionLog] = useState(false); // State to toggle the raw log
+  const [showActionLog, setShowActionLog] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -104,7 +104,7 @@ export default function Dashboard() {
                         {actionLog.map((action) => (
                             <tr key={action._id}>
                                 <td className="user-email">{action.userEmail}</td>
-                                <td>{new Date(action.timestamp).toLocaleTimeString()}</td>
+                                <td>{new Date(action.timestamp).toLocaleString()}</td>
                                 <td>{action.type.replace(/_/g, ' ')}</td>
                                 <td className="details-cell">
                                   {action.type === 'tile_click' && action.details && action.details.tile

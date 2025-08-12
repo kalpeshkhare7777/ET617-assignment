@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs'); // For password hashing
+const bcrypt = require('bcryptjs');
 
 // --- Configuration ---
 const app = express();
@@ -21,18 +21,15 @@ mongoose.connect(MONGO_URI)
   });
 
 // --- Database Schemas ---
-
-// New Schema for User Authentication
 const UserSchema = new mongoose.Schema({
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
-    createdAt: { type: Date, default: Date.now },
 });
 const User = mongoose.model('User', UserSchema);
 
-// Schema for a single game session
 const GameSessionSchema = new mongoose.Schema({
   sessionId: { type: String, required: true, unique: true, index: true },
+  userEmail: { type: String, required: true, index: true },
   startTime: { type: Date, required: true },
   endTime: { type: Date },
   durationSeconds: { type: Number },
@@ -43,9 +40,9 @@ const GameSessionSchema = new mongoose.Schema({
 });
 const GameSession = mongoose.model('GameSession', GameSessionSchema);
 
-// Schema for individual actions within a game
 const GameActionSchema = new mongoose.Schema({
   sessionId: { type: String, required: true, index: true },
+  userEmail: { type: String, required: true, index: true },
   type: { type: String, required: true },
   details: { type: Object },
   timestamp: { type: Date, default: Date.now },
@@ -53,80 +50,59 @@ const GameActionSchema = new mongoose.Schema({
 const GameAction = mongoose.model('GameAction', GameActionSchema);
 
 
-// --- NEW Authentication API Routes ---
-
-/**
- * @route   POST /api/auth/register
- * @desc    Registers a new user.
- */
+// --- Auth Routes ---
 app.post('/api/auth/register', async (req, res) => {
     const { email, password } = req.body;
     try {
         let user = await User.findOne({ email });
-        if (user) {
-            return res.status(400).json({ message: 'User with this email already exists.' });
-        }
+        if (user) return res.status(400).json({ message: 'User already exists.' });
         user = new User({ email, password });
-
-        // Hash the password before saving
         const salt = await bcrypt.genSalt(10);
         user.password = await bcrypt.hash(password, salt);
-
         await user.save();
         res.status(201).json({ message: 'User registered successfully.' });
     } catch (error) {
-        console.error('Registration error:', error);
-        res.status(500).json({ message: 'Server error during registration.' });
+        res.status(500).json({ message: 'Server error.' });
     }
 });
 
-/**
- * @route   POST /api/auth/login
- * @desc    Logs in a user.
- */
 app.post('/api/auth/login', async (req, res) => {
     const { email, password } = req.body;
     try {
         const user = await User.findOne({ email });
-        if (!user) {
-            return res.status(400).json({ message: 'Invalid credentials.' });
-        }
-
+        if (!user) return res.status(400).json({ message: 'Invalid credentials.' });
         const isMatch = await bcrypt.compare(password, user.password);
-        if (!isMatch) {
-            return res.status(400).json({ message: 'Invalid credentials.' });
-        }
-        
-        // In a real app, you would generate and return a JWT token here
+        if (!isMatch) return res.status(400).json({ message: 'Invalid credentials.' });
         res.status(200).json({ message: 'Login successful.' });
     } catch (error) {
-        console.error('Login error:', error);
-        res.status(500).json({ message: 'Server error during login.' });
+        res.status(500).json({ message: 'Server error.' });
     }
 });
 
 
-// --- Game Analytics API Routes ---
+// --- Game Tracking API Routes ---
 app.post('/api/game/start', async (req, res) => {
     try {
+        const { userEmail } = req.body;
+        if (!userEmail) return res.status(400).json({ message: 'userEmail is required.' });
         const newSession = new GameSession({
             sessionId: new mongoose.Types.ObjectId().toString(),
             startTime: new Date(),
+            userEmail: userEmail,
         });
         await newSession.save();
-        console.log(`Game session started: [Session ID: ${newSession.sessionId}]`);
+        console.log(`Game session started for ${userEmail}: [ID: ${newSession.sessionId}]`);
         res.status(201).json({ sessionId: newSession.sessionId });
     } catch (error) {
-        console.error('Error starting game session:', error);
         res.status(500).json({ message: 'Server error' });
     }
 });
 
 app.post('/api/game/action', async (req, res) => {
     try {
-        const { sessionId, type, details } = req.body;
-        if (!sessionId || !type) {
-            return res.status(400).json({ message: 'sessionId and type are required.' });
+        const { sessionId, userEmail, type, ...details } = req.body;
+        if (!sessionId || !userEmail || !type) {
+            return res.status(400).json({ message: 'sessionId, userEmail, and type are required.' });
         }
         
         const newAction = new GameAction({ sessionId, userEmail, type, details });
@@ -141,10 +117,9 @@ app.post('/api/game/action', async (req, res) => {
             await GameSession.updateOne({ sessionId }, update);
         }
 
-        console.log(`Action logged: [Session: ${sessionId}] [Type: ${type}]`);
+        console.log(`Action logged for ${userEmail}: [Session: ${sessionId}] [Type: ${type}]`);
         res.status(201).json({ message: 'Action logged successfully.' });
     } catch (error) {
-        console.error('Error logging action:', error);
         res.status(500).json({ message: 'Server error' });
     }
 });
@@ -152,14 +127,9 @@ app.post('/api/game/action', async (req, res) => {
 app.post('/api/game/end', async (req, res) => {
     try {
         const { sessionId, outcome } = req.body;
-        if (!sessionId || !outcome) {
-            return res.status(400).json({ message: 'sessionId and outcome are required.' });
-        }
-
+        if (!sessionId || !outcome) return res.status(400).json({ message: 'sessionId and outcome are required.' });
         const session = await GameSession.findOne({ sessionId });
-        if (!session) {
-            return res.status(404).json({ message: 'Session not found.' });
-        }
+        if (!session) return res.status(404).json({ message: 'Session not found.' });
 
         session.endTime = new Date();
         session.durationSeconds = (session.endTime - session.startTime) / 1000;
@@ -167,31 +137,32 @@ app.post('/api/game/end', async (req, res) => {
         
         await session.save();
         
-        console.log(`Game session ended: [Session ID: ${sessionId}] [Outcome: ${outcome}]`);
+        console.log(`Game session ended: [ID: ${sessionId}] [Outcome: ${outcome}]`);
         res.status(200).json({ message: 'Game session ended.' });
     } catch (error) {
-        console.error('Error ending session:', error);
         res.status(500).json({ message: 'Server error' });
     }
 });
 
+
+// --- Analytics API Route ---
 app.get('/api/analytics', async (req, res) => {
   try {
-    const recentSessions = await GameSession.find({ outcome: { $ne: 'incomplete' } })
+    // --- UPDATED: Removed the filter to include ALL recent sessions ---
+    const recentSessions = await GameSession.find({})
         .sort({ startTime: -1 })
         .limit(50);
 
     const summaryPipeline = [
-        {
-            $group: {
-                _id: null,
-                totalGames: { $sum: 1 },
-                totalWins: { $sum: { $cond: [{ $eq: ['$outcome', 'win'] }, 1, 0] } },
-                avgDuration: { $avg: '$durationSeconds' },
-                avgMoves: { $avg: '$totalMoves' },
-                totalHints: { $sum: '$hintsUsed' },
-            }
-        }
+        { $match: { outcome: { $ne: 'incomplete' } } }, // Only calculate stats for completed games
+        { $group: {
+            _id: null,
+            totalGames: { $sum: 1 },
+            totalWins: { $sum: { $cond: [{ $eq: ['$outcome', 'win'] }, 1, 0] } },
+            avgDuration: { $avg: '$durationSeconds' },
+            avgMoves: { $avg: '$totalMoves' },
+            totalHints: { $sum: '$hintsUsed' },
+        }}
     ];
     
     const summaryResult = await GameSession.aggregate(summaryPipeline);
@@ -203,20 +174,8 @@ app.get('/api/analytics', async (req, res) => {
     res.status(200).json({ summary, recentSessions, actionLog });
 
   } catch (error) {
-    console.error('Error fetching analytics:', error);
-    res.status(500).json({ message: 'Server error while fetching analytics' });
+    res.status(500).json({ message: 'Server error' });
   }
-});
-
-app.get('/api/game/log/:sessionId', async (req, res) => {
-    try {
-        const { sessionId } = req.params;
-        const actions = await GameAction.find({ sessionId }).sort({ timestamp: 1 });
-        res.status(200).json(actions);
-    } catch (error) {
-        console.error('Error fetching session log:', error);
-        res.status(500).json({ message: 'Server error' });
-    }
 });
 
 // --- Start the Server ---
