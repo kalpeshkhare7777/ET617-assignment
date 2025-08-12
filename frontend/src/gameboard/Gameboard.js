@@ -24,42 +24,45 @@ const createShuffledTiles = () => {
 
 /**
  * The main game board component with advanced event tracking.
+ * @param {object} props - Component props.
+ * @param {string} props.currentUser - The email of the currently logged-in user.
  */
-export default function GameBoard() {
+export default function GameBoard({ currentUser }) {
   const [tiles, setTiles] = useState(createShuffledTiles());
   const [flippedTiles, setFlippedTiles] = useState([]);
   const [moves, setMoves] = useState(0);
   const [isGameWon, setIsGameWon] = useState(false);
-  const [history, setHistory] = useState([]); // For the undo feature
-  const [hintedPair, setHintedPair] = useState([]); // For the hint feature
+  const [history, setHistory] = useState([]);
+  const [hintedPair, setHintedPair] = useState([]);
   
   const sessionIdRef = useRef(null);
   
-  // This effect runs only once when the component mounts to start a new game session.
+  // This effect runs when the component mounts to start a new game session.
   useEffect(() => {
     const initializeGame = async () => {
-      const newSessionId = await startGameSession();
+      // Only start a session if a user is logged in.
+      if (!currentUser) return; 
+      const newSessionId = await startGameSession(currentUser);
       if (newSessionId) {
         sessionIdRef.current = newSessionId;
-        logGameAction(newSessionId, 'game_start');
+        logGameAction(newSessionId, currentUser, 'game_start');
       }
     };
     initializeGame();
-  }, []);
+  }, [currentUser]);
 
-  // This effect checks for a win condition whenever the tiles state changes.
+  // This effect checks for a win condition.
   useEffect(() => {
-    // Don't check for win on the initial empty board
     if (tiles.length > 0 && tiles.every(tile => tile.isMatched)) {
-        if (!isGameWon) { // Prevent multiple win events
+        if (!isGameWon) {
             setIsGameWon(true);
             if (sessionIdRef.current) {
-                logGameAction(sessionIdRef.current, 'game_end', { outcome: 'win' });
+                logGameAction(sessionIdRef.current, currentUser, 'game_end', { outcome: 'win' });
                 endGameSession(sessionIdRef.current, 'win');
             }
         }
     }
-  }, [tiles, isGameWon]);
+  }, [tiles, isGameWon, currentUser]);
 
   // This effect handles the logic for matching tiles.
   useEffect(() => {
@@ -71,7 +74,7 @@ export default function GameBoard() {
     const isMatch = firstTile.content === secondTile.content;
 
     if (sessionIdRef.current) {
-        logGameAction(sessionIdRef.current, 'match_attempt', {
+        logGameAction(sessionIdRef.current, currentUser, 'match_attempt', {
             tiles: [firstTile.content, secondTile.content],
             isMatch: isMatch,
         });
@@ -94,27 +97,21 @@ export default function GameBoard() {
         setFlippedTiles([]);
       }, 1000);
     }
-  }, [flippedTiles, tiles]);
+  }, [flippedTiles, tiles, currentUser]);
 
-  /**
-   * Saves the current state to history before making a change.
-   */
   const saveToHistory = () => {
     setHistory(prevHistory => [...prevHistory, { tiles, moves }]);
   };
 
-  /**
-   * Handles the click event on a tile.
-   */
   const handleTileClick = (index) => {
     if (isGameWon || flippedTiles.length >= 2 || tiles[index].isFlipped) {
       return;
     }
 
-    saveToHistory(); // Save state before the move
+    saveToHistory();
 
     if (sessionIdRef.current) {
-        logGameAction(sessionIdRef.current, 'tile_click', { 
+        logGameAction(sessionIdRef.current, currentUser, 'tile_click', { 
             tile: tiles[index].content, 
             tileId: index,
             isFirstTile: flippedTiles.length === 0,
@@ -130,20 +127,15 @@ export default function GameBoard() {
     );
   };
 
-  /**
-   * Resets the game to its initial state, starting a new session.
-   */
   const handleReset = async () => {
     if (sessionIdRef.current && !isGameWon) {
-        // End the current session as 'incomplete' since it was reset
         await endGameSession(sessionIdRef.current, 'incomplete');
     }
     
-    // Start a brand new session
-    const newSessionId = await startGameSession();
+    const newSessionId = await startGameSession(currentUser);
     if (newSessionId) {
         sessionIdRef.current = newSessionId;
-        logGameAction(newSessionId, 'game_start');
+        logGameAction(newSessionId, currentUser, 'game_start');
     }
     
     setTiles(createShuffledTiles());
@@ -153,12 +145,9 @@ export default function GameBoard() {
     setHistory([]);
   };
 
-  /**
-   * Briefly reveals a pair of unmatched cards.
-   */
   const handleHint = () => {
     if (sessionIdRef.current) {
-      logGameAction(sessionIdRef.current, 'hint');
+      logGameAction(sessionIdRef.current, currentUser, 'hint');
     }
 
     const unmatchedTiles = tiles.filter(tile => !tile.isMatched && !tile.isFlipped);
@@ -171,25 +160,22 @@ export default function GameBoard() {
 
     if (matchingTile) {
       setHintedPair([firstTile.id, matchingTile.id]);
-      setTimeout(() => setHintedPair([]), 800); // Show hint for 0.8 seconds
+      setTimeout(() => setHintedPair([]), 800);
     }
   };
 
-  /**
-   * Reverts the game to the last saved state.
-   */
   const handleUndo = () => {
     if (history.length === 0) return;
 
     if (sessionIdRef.current) {
-      logGameAction(sessionIdRef.current, 'undo');
+      logGameAction(sessionIdRef.current, currentUser, 'undo');
     }
 
     const lastState = history[history.length - 1];
     setTiles(lastState.tiles);
     setMoves(lastState.moves);
-    setHistory(history.slice(0, -1)); // Remove the last state
-    setFlippedTiles([]); // Clear any selections
+    setHistory(history.slice(0, -1));
+    setFlippedTiles([]);
   };
 
   return (

@@ -1,22 +1,23 @@
 import React, { useState } from 'react';
-import { loginUser } from '../api';
-import './LoginPage.css';
+import { registerUser } from '../api';
+import './LoginPage.css'; // We can reuse the same styles
 
 /**
- * The updated login component with backend integration.
+ * A component for the user registration screen.
  * @param {object} props - Component props.
- * @param {function} props.onLoginSuccess - Function to call on successful login, passing the user's email.
- * @param {function} props.onGoToRegister - Function to navigate to the register page.
+ * @param {function} props.onGoToLogin - Function to navigate back to the login page.
  */
-export default function LoginPage({ onLoginSuccess, onGoToRegister }) {
+export default function RegisterPage({ onGoToLogin }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setMessage('');
     setLoading(true);
 
     if (!email || !password) {
@@ -25,11 +26,10 @@ export default function LoginPage({ onLoginSuccess, onGoToRegister }) {
       return;
     }
 
-    const response = await loginUser(email, password);
+    const response = await registerUser(email, password);
 
-    if (response.message.includes('successful')) {
-      // On success, call the handler with the user's email.
-      onLoginSuccess(email); 
+    if (response.message.includes('successfully')) {
+      setMessage(response.message + ' You can now log in.');
     } else {
       setError(response.message);
     }
@@ -39,10 +39,11 @@ export default function LoginPage({ onLoginSuccess, onGoToRegister }) {
   return (
     <div className="login-card">
       <div className="login-header">
-        <h1>Welcome Back!</h1>
-        <p>Please sign in to play the Memory Game.</p>
+        <h1>Create Account</h1>
+        <p>Sign up to start playing.</p>
       </div>
 
+      {message && <div className="success-message">{message}</div>}
       {error && <div className="error-message">{error}</div>}
 
       <form className="login-form" onSubmit={handleSubmit}>
@@ -64,20 +65,20 @@ export default function LoginPage({ onLoginSuccess, onGoToRegister }) {
             id="password"
             type="password"
             className="input-field"
-            placeholder="Enter your password"
+            placeholder="Create a password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
           />
         </div>
         <button type="submit" className="submit-btn" disabled={loading}>
-          {loading ? 'Signing In...' : 'Sign In'}
+          {loading ? 'Registering...' : 'Register'}
         </button>
       </form>
       <p className="form-footer">
-        Don't have an account?{' '}
-        <button className="link-btn" onClick={onGoToRegister}>
-          Register
+        Already have an account?{' '}
+        <button className="link-btn" onClick={onGoToLogin}>
+          Sign In
         </button>
       </p>
     </div>

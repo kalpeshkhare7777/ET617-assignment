@@ -103,6 +103,60 @@ tbody tr:hover {
     font-style: italic;
 }
 
+/* Styles for Log Toggle Button */
+.log-toggle-btn {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #3b82f6;
+    background-color: #eff6ff;
+    border: 1px solid #bfdbfe;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.log-toggle-btn:hover {
+    background-color: #dbeafe;
+}
+
+/* Styles for Expanded Session Log */
+.session-log-details {
+    padding: 1rem;
+    background-color: #f9fafb;
+}
+
+.session-log-details h4 {
+    margin-top: 0;
+    margin-bottom: 1rem;
+    color: #1f2937;
+}
+
+.session-log-details ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    font-family: monospace;
+    font-size: 0.85rem;
+}
+
+.session-log-details li {
+    display: grid;
+    grid-template-columns: 100px 150px 1fr;
+    gap: 1rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.session-log-details li:last-child {
+    border-bottom: none;
+}
+
+.log-time { color: #9ca3af; }
+.log-type { color: #374151; font-weight: 600; text-transform: capitalize; }
+.log-details { color: #6b7280; white-space: pre-wrap; }
+
+
 /* Simple loader animation */
 .loader {
     width: 20px;
